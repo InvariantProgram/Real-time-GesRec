@@ -176,13 +176,11 @@ def generate_model(opt):
             model = modify_kernels(opt, model, opt.pretrain_modality)
             model.load_state_dict(pretrain['state_dict'])
 
-            
-
             if opt.model in  ['mobilenet', 'mobilenetv2', 'shufflenet', 'shufflenetv2']:
                 model.module.classifier = nn.Sequential(
                                 nn.Dropout(0.9),
                                 nn.Linear(model.module.classifier[1].in_features, opt.n_finetune_classes)
-                                )
+                                ) 
             elif opt.model == 'squeezenet':
                 model.module.classifier = nn.Sequential(
                                 nn.Dropout(p=0.5),

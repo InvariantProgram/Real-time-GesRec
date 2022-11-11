@@ -102,15 +102,3 @@ def get_model(**kwargs):
     """
     model = MobileNet(**kwargs)
     return model
-
-
-
-if __name__ == '__main__':
-    model = get_model(num_classes=600, sample_size = 112, width_mult=1.)
-    model = model.cuda()
-    model = nn.DataParallel(model, device_ids=None)
-    print(model)
-
-    input_var = Variable(torch.randn(8, 3, 16, 112, 112))
-    output = model(input_var)
-    print(output.shape)

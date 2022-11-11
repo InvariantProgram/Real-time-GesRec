@@ -6,7 +6,7 @@ python3 online_test.py \
 	--resume_path_det report/egogesture_resnetl_10_Depth_8_9939.pth \
 	--resume_path_clf report/egogesture_resnext_101_Depth_32_9403.pth  \
 	--result_path results \
-	--dataset egogesture    \
+	--dataset egogesture   \
 	--sample_duration_det 8 \
 	--sample_duration_clf 32 \
 	--model_det resnetl \

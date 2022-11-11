@@ -81,10 +81,10 @@ def create_trainlist( subset ,file_name, class_types = 'all'):
 	print("Writing to the file ...")
 	file_path = os.path.join('annotation_EgoGesture',file_name)
 	with open(file_path, 'w') as myfile:
-	    for new_line in new_lines:
-	    	myfile.write(new_line)
-	    	myfile.write('\n')
-	print("Scuccesfully wrote file to:",file_path)
+		for new_line in new_lines:
+			myfile.write(new_line)
+			myfile.write('\n')
+	print("Succesfully wrote file to:",file_path)
 
 if __name__ == '__main__':
 	# This file helps to index videos in the dataset by creating a .txt file where every line is a video clip
