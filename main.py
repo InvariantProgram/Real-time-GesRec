@@ -20,8 +20,6 @@ from train import train_epoch
 from validation import val_epoch
 import test
 
-
-
 if __name__ == '__main__':
     opt = parse_opts()
     if opt.root_path != '':

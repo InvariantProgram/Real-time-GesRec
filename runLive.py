@@ -4,82 +4,70 @@ import json
 import numpy as np
 import torch
 from torch import nn
-from torch import optim
-from torch.optim import lr_scheduler
+import torch.nn.functional as F
 
-from opts import parse_opts
-from model import generate_model
-from mean import get_mean, get_std
-from spatial_transforms import *
-from temporal_transforms import *
-from target_transforms import ClassLabel, VideoID
-from target_transforms import Compose as TargetCompose
-from dataset import get_training_set, get_validation_set, get_test_set
+import cv2
 from utils import *
-from train import train_epoch
-from validation import val_epoch
-import test
 
+from models import mobilenet
 
 if __name__ == '__main__':
+    gestures = open("annotation_Jester/categories.txt").readlines()
+    gestures = [gesture.split()[-1] for gesture in gestures]
+    print(gestures)
+
     pretrained = torch.load("results/jester_mobilenet_0.5x_RGB_16_best.pth")
+    #dataset_architect_[width_mult]x_modality_sampleDuration 
     
+    '''
     for key in pretrained:
         print(key, type(pretrained[key]))
 
     print(pretrained["arch"])
+    '''
+    model = mobilenet.get_model(num_classes = 27, width_mult = 0.5)
+    model = nn.DataParallel(model, device_ids=None)
+    model.module.classifier = nn.Sequential(
+                                nn.Dropout(0.5),
+                                nn.Linear(model.module.classifier[1].in_features, 27))
+    model = model.cuda()
+    model.eval()
 
-    opt = parse_opts()
-    if opt.root_path != '':
-        opt.video_path = os.path.join(opt.root_path, opt.video_path)
-        opt.annotation_path = os.path.join(opt.root_path, opt.annotation_path)
-        opt.result_path = os.path.join(opt.root_path, opt.result_path)
-        if not os.path.exists(opt.result_path):
-            os.makedirs(opt.result_path)
-        if opt.resume_path:
-            opt.resume_path = os.path.join(opt.root_path, opt.resume_path)
-        if opt.pretrain_path:
-            opt.pretrain_path = os.path.join(opt.root_path, opt.pretrain_path)
-    opt.scales = [opt.initial_scale]
-    for i in range(1, opt.n_scales):
-        opt.scales.append(opt.scales[-1] * opt.scale_step)
-    opt.arch = '{}'.format(opt.model)
-    opt.mean = get_mean(opt.norm_value, dataset=opt.mean_dataset)
-    opt.std = get_std(opt.norm_value)
-    opt.store_name = '_'.join([opt.dataset, opt.model, str(opt.width_mult) + 'x',
-                               opt.modality, str(opt.sample_duration)])
-    print(opt)
-    with open(os.path.join(opt.result_path, 'opts.json'), 'w') as opt_file:
-        json.dump(vars(opt), opt_file)
 
-    torch.manual_seed(opt.manual_seed)
+    print("Starting Video Process")
+    cv2.namedWindow("preview")
 
-    model, parameters = generate_model(opt)
-    print(model)
-
-    if opt.no_mean_norm and not opt.std_norm:
-        norm_method = Normalize([0, 0, 0], [1, 1, 1])
-    elif not opt.std_norm:
-        norm_method = Normalize(opt.mean, [1, 1, 1])
+    q = list()
+    max_size = 16 # Number of frames stored
+    vc = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    if vc.isOpened():
+        rval, frame = vc.read()
     else:
-        norm_method = Normalize(opt.mean, opt.std)
+        rval = False
+    
+    while rval:
+        if len(q) == max_size:
+            test = q.pop() #numpy array (480, 640, 3)
+        q.insert(0, torch.Tensor(frame))
 
-    if opt.test:
-        spatial_transform = Compose([
-            Scale(int(opt.sample_size / opt.scale_in_test)),
-            CornerCrop(opt.sample_size, opt.crop_position_in_test),
-            ToTensor(opt.norm_value), norm_method
-        ])
-        # temporal_transform = LoopPadding(opt.sample_duration, opt.downsample)
-        temporal_transform = TemporalRandomCrop(opt.sample_duration, opt.downsample)
-        target_transform = VideoID()
 
-        test_data = get_test_set(opt, spatial_transform, temporal_transform,
-                                 target_transform)
-        test_loader = torch.utils.data.DataLoader(
-            test_data,
-            batch_size=40,
-            shuffle=False,
-            num_workers=opt.n_threads,
-            pin_memory=True)
-        test.test(test_loader, model, opt, test_data.class_names)
+        gest_str = ""
+        if len(q) == max_size:
+            with torch.no_grad():
+                input = torch.unsqueeze(torch.stack(q, 0).permute(3, 0, 1, 2), 0)
+                output = F.softmax(model(input), dim=1) #torch.size([1, 27])
+                print(output)
+                max_ind = torch.argmax(output).item()
+                gest_str = "Gesture: %s" % (gestures[max_ind])
+
+        rval, frame = vc.read()
+        cv2.putText(frame, gest_str, (0, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+        cv2.imshow("preview", frame)
+
+        key = cv2.waitKey(20)
+        if key == 27:
+            break
+
+    cv2.destroyWindow("preview")
+    vc.release()
+    
