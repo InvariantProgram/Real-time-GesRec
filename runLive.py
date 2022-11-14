@@ -19,17 +19,12 @@ if __name__ == '__main__':
     pretrained = torch.load("results/jester_mobilenet_0.5x_RGB_16_best.pth")
     #dataset_architect_[width_mult]x_modality_sampleDuration 
     
-    '''
-    for key in pretrained:
-        print(key, type(pretrained[key]))
-
-    print(pretrained["arch"])
-    '''
     model = mobilenet.get_model(num_classes = 27, width_mult = 0.5)
     model = nn.DataParallel(model, device_ids=None)
     model.module.classifier = nn.Sequential(
                                 nn.Dropout(0.5),
                                 nn.Linear(model.module.classifier[1].in_features, 27))
+    model.load_state_dict(pretrained["state_dict"])
     model = model.cuda()
     model.eval()
 
@@ -45,23 +40,35 @@ if __name__ == '__main__':
     else:
         rval = False
     
+    last_input = None
     while rval:
-        if len(q) == max_size:
+        if len(q) >= max_size:
             test = q.pop() #numpy array (480, 640, 3)
         q.insert(0, torch.Tensor(frame))
 
-
-        gest_str = ""
+        max_ind = None
         if len(q) == max_size:
             with torch.no_grad():
                 input = torch.unsqueeze(torch.stack(q, 0).permute(3, 0, 1, 2), 0)
-                output = F.softmax(model(input), dim=1) #torch.size([1, 27])
-                print(output)
-                max_ind = torch.argmax(output).item()
-                gest_str = "Gesture: %s" % (gestures[max_ind])
+                '''
+                if last_input is not None:
+                    diff = torch.sum(input - last_input).item()
+                    n = 1
+                    for dim in input.size():
+                        n *= dim
+                    mean = diff / n
+                    print("Differences:", diff, "Average:", mean)
+                last_input = input.detach()
+                '''
+                output = model(input) #torch.size([1, 27])
+                output = F.softmax(output, dim=1)
+                max_ind = torch.topk(output, 3)
 
         rval, frame = vc.read()
-        cv2.putText(frame, gest_str, (0, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+        if max_ind is not None:
+            for i in range(max_ind[1].size()[1]):
+                gest_str = "%d. %s: %.4f" % (i+1, gestures[max_ind[1][0][i]], max_ind[0][0][i])
+                cv2.putText(frame, gest_str, (0, 20 * (i+1)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
         cv2.imshow("preview", frame)
 
         key = cv2.waitKey(20)
