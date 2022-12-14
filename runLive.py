@@ -14,16 +14,28 @@ from models import mobilenet
 if __name__ == '__main__':
     gestures = open("annotation_Jester/categories.txt").readlines()
     gestures = [gesture.split()[-1] for gesture in gestures]
-    print(gestures)
 
-    pretrained = torch.load("results/jester_mobilenet_0.5x_RGB_16_best.pth")
+    # pretrained = torch.load("results/jester_mobilenet_0.5x_RGB_16_best.pth")
     #dataset_architect_[width_mult]x_modality_sampleDuration 
+
+    ##Finetuned version
+    pretrained = torch.load("finetune/save_0.pth")
+    finetuneSelections = [2, 3, 5, 15, 16, 17, 18, 21, 22]
+    gestures = [gestures[i] for i in finetuneSelections]
     
     model = mobilenet.get_model(num_classes = 27, width_mult = 0.5)
     model = nn.DataParallel(model, device_ids=None)
+    '''
     model.module.classifier = nn.Sequential(
                                 nn.Dropout(0.5),
                                 nn.Linear(model.module.classifier[1].in_features, 27))
+    model.load_state_dict(pretrained["state_dict"])
+    '''
+    ##Finetuned Version
+    model.module.classifier = nn.Sequential(
+        nn.Dropout(0.5),
+        nn.Linear(model.module.classifier[1].in_features, 9)
+    )
     model.load_state_dict(pretrained["state_dict"])
     model = model.cuda()
     model.eval()
