@@ -22,6 +22,10 @@ class retrainSet(Dataset):
             if not os.path.isfile(rootpath + dir):
                 for file in os.listdir(rootpath + dir):
                     self.files.append(("{0}/{1}/{2}".format(rootpath, dir, file), i)) #Form (file_path, class_num)
+        
+        with open("./finetune/matchfile.txt", 'w') as f:
+            for key in self.classes.keys():
+                f.write("{0} - {1}\n".format(key, self.classes[key]))
     
     def __len__(self):
         return len(self.files)    

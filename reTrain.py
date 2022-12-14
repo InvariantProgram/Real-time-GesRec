@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import time
+import random
 
 import numpy as np
 import torch
@@ -20,7 +21,10 @@ def finetune_epoch(epoch, data_loader, model, criterion, optimizer):
     model.train()
 
     start_time = time.time()
-    for i, (inputs, target) in enumerate(data_loader):
+    shuffled = [i for i in range(data_loader.__len__())]
+    random.shuffle(shuffled)
+    for i, idx in enumerate(shuffled):
+        inputs, target = data_loader.__getitem__(idx)
         inputs = Variable(inputs)
         target = Variable(target)
         output = model(inputs)
