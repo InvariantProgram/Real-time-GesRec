@@ -14,11 +14,15 @@ from models import mobilenet
 from utils import *
 from retrainLoader import retrainSet
 
+import matplotlib.pyplot as plt
 
-def finetune_epoch(epoch, data_loader, model, criterion, optimizer):
+
+def finetune_epoch(epoch, data_loader, model, criterion, optimizer, log_path):
     print('train at epoch {}'.format(epoch))
 
     model.train()
+
+    loss_list = list()
 
     start_time = time.time()
     shuffled = [i for i in range(data_loader.__len__())]
@@ -38,17 +42,22 @@ def finetune_epoch(epoch, data_loader, model, criterion, optimizer):
         loss.backward()
         optimizer.step()
 
+        loss_list.append(loss.item())
+
         end_time = time.time()
         if i % 10 == 0:
-            print('Epoch: [{0}][{1}/{2}]\t lr: {lr:.5f}\t'
-                  'Time {elapsed_time:.3f}\t'
-                  'Loss {loss:.4f}\t'.format(
+            diag_str = 'Epoch: [{0}][{1}/{2}]\t lr: {lr:.5f}\t Time {elapsed_time:.3f}\t Loss {loss:.4f}\t'.format(
                       epoch,
                       i,
                       len(data_loader),
                       elapsed_time=end_time - start_time,
                       loss=loss,
-                      lr=optimizer.param_groups[0]['lr']))
+                      lr=optimizer.param_groups[0]['lr'])
+            print(diag_str)
+            with open(log_path, 'a') as f:
+                f.write("{0}\n".format(diag_str))    
+    
+    return loss_list
 
 if __name__ == "__main__":
     pretrained = torch.load("results/jester_mobilenet_0.5x_RGB_16_best.pth")
@@ -74,13 +83,16 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
 
     data_loader = retrainSet(input_frames=16) #Input Frame num dim
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-1, weight_decay=1e-8)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-8)
     checkpointing = 5
 
     begin_epochs = 0
     end_epochs = 25
+
+    losses_list = list()
     for i in range(begin_epochs, end_epochs+1):
-        finetune_epoch(i, data_loader, model, criterion, optimizer)
+        diag_path = os.path.join(os.getcwd(), "finetune", "log.txt")
+        losses_list.extend(finetune_epoch(i, data_loader, model, criterion, optimizer, diag_path))
 
         if i % checkpointing == 0:
             save_file_path = os.path.join(os.getcwd(), "finetune",
@@ -92,3 +104,10 @@ if __name__ == "__main__":
                 'optimizer': optimizer.state_dict(),
             }
             torch.save(states, save_file_path)
+    
+    plt.plot(losses_list)
+    plt.ylabel("Losses")
+    manager = plt.get_current_fig_manager()
+    manager.full_screen_toggle()
+    plt.savefig(os.path.join(os.getcwd(), "finetune", 'losses.png'))
+    plt.show()

@@ -13,6 +13,8 @@ __pycache__/
 
 # model weights
 *.pth
+#Upload finetune params
+!finetune/*.pth
 
 # opts file
 opts.json
